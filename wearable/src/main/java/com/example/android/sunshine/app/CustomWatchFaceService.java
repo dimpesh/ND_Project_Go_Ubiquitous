@@ -13,13 +13,27 @@ import android.graphics.Typeface;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
+import android.support.annotation.NonNull;
 import android.support.wearable.watchface.CanvasWatchFaceService;
 import android.support.wearable.watchface.WatchFaceService;
 import android.support.wearable.watchface.WatchFaceStyle;
+import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.WindowInsets;
 
 import android.text.format.Time;
+
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.wearable.DataApi;
+import com.google.android.gms.wearable.DataEvent;
+import com.google.android.gms.wearable.DataEventBuffer;
+import com.google.android.gms.wearable.DataItem;
+import com.google.android.gms.wearable.DataMap;
+import com.google.android.gms.wearable.DataMapItem;
+import com.google.android.gms.wearable.MessageApi;
+import com.google.android.gms.wearable.MessageEvent;
+import com.google.android.gms.wearable.Wearable;
 
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
@@ -40,7 +54,17 @@ public class CustomWatchFaceService extends CanvasWatchFaceService {
 
 
     //s2 class extends Engine
-    private class WatchFaceEngine extends Engine {
+    private class WatchFaceEngine extends Engine implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener
+            , DataApi.DataListener, MessageApi.MessageListener{
+
+
+        // GoogleApiClient Path...
+        private  String DATA_PATH="/my_path";
+        private GoogleApiClient googleApiClient;
+        int id;
+        double max;
+        double min;
+        String desc;
 
         private Typeface MY_TYPREFACE = Typeface.createFromAsset(getApplicationContext().getAssets(), "montserrat.ttf");
 
@@ -118,6 +142,13 @@ public class CustomWatchFaceService extends CanvasWatchFaceService {
             // these methods definitions are to be written also
             initBackground();
             initDisplayText();
+
+            googleApiClient = new GoogleApiClient.Builder(
+                    CustomWatchFaceService.this).addApi(Wearable.API)
+                    .addConnectionCallbacks(this)
+                    .addOnConnectionFailedListener(this)
+                    .build();
+
         }
 
         // custom methods
@@ -148,6 +179,8 @@ public class CustomWatchFaceService extends CanvasWatchFaceService {
                     CustomWatchFaceService.this.registerReceiver(mTimeZoneBroadcastReceiver, filter);
 
                     mHasTimeZoneReceiverBeenRegistered = true;
+                    googleApiClient.connect();
+
                 }
 
                 mDisplayTime.clear(TimeZone.getDefault().getID());
@@ -156,9 +189,20 @@ public class CustomWatchFaceService extends CanvasWatchFaceService {
                 if (mHasTimeZoneReceiverBeenRegistered) {
                     CustomWatchFaceService.this.unregisterReceiver(mTimeZoneBroadcastReceiver);
                     mHasTimeZoneReceiverBeenRegistered = false;
+
+                    releaseGoogleApiClient();
+
                 }
             }
             updateTimer();
+
+        }
+
+        private void releaseGoogleApiClient() {
+            if (googleApiClient != null && googleApiClient.isConnected()) {
+                Wearable.DataApi.removeListener(googleApiClient, this);
+                googleApiClient.disconnect();
+            }
         }
 
         // s13 define updateTimer method
@@ -273,6 +317,7 @@ public class CustomWatchFaceService extends CanvasWatchFaceService {
             drawBackgroundFill(canvas, bounds);
             drawTimeText(canvas);
             drawDayText(canvas);
+            drawTemperatureText(canvas);
 
         }
 
@@ -308,7 +353,9 @@ public class CustomWatchFaceService extends CanvasWatchFaceService {
             textpaint.setTypeface(MY_TYPREFACE);
             textpaint.setAntiAlias(true);
             if (isInAmbientMode() || isInAmbientMode()) {
+                textpaint.setTypeface(Typeface.SERIF);
                 canvas.drawText(timeText, 90, 150, mTextColorPaint);
+
             } else
                 canvas.drawText(timeText, 90, 150, textpaint);
 
@@ -319,17 +366,43 @@ public class CustomWatchFaceService extends CanvasWatchFaceService {
             String result;
             String day = getDayName(mDisplayTime.weekDay)+" ";
             String month=getMonthName(mDisplayTime.month)+" ";
-
             String date=mDisplayTime.monthDay+" ";
             String year=mDisplayTime.year+"";
-            result=day+" "+month+" "+date+" "+year;
+            result=day+" | "+month+" "+date+","+year;
+            String result_ambient=date+month;
             Paint textpaint = new Paint();
             textpaint.setColor(Color.parseColor("#ffffff"));
             textpaint.setTextSize(getResources().getDimension(R.dimen.day_size));
             textpaint.setAntiAlias(true);
-            if (isInAmbientMode() || isInAmbientMode()) {
+            if (isInAmbientMode() || isInAmbientMode())
+            {
+                canvas.drawText(result_ambient, 100, 180, textpaint);
+
             } else
-                canvas.drawText(result, 90, 200, textpaint);
+                canvas.drawText(result, 90,180, textpaint);
+        }
+
+        private void drawTemperatureText(Canvas canvas)
+        {
+            if(id!=0 && desc!=null)
+            {
+                int max_value= (int) Math.round(max);
+                int min_value=(int)Math.round(min);
+
+                String temp_text=desc+" | "+max_value+"/"+min_value;
+                String temp_text_ambient=max_value+"/"+min_value;
+                Paint textpaint = new Paint();
+                textpaint.setColor(Color.parseColor("#ffffff"));
+                textpaint.setTextSize(getResources().getDimension(R.dimen.day_size));
+                textpaint.setAntiAlias(true);
+                if (isInAmbientMode())
+                {
+                    canvas.drawText(temp_text_ambient, 180,180, textpaint);
+                } else
+                    canvas.drawText(temp_text, 120, 210, textpaint);
+            }
+
+
         }
 
         private String getDayName(int n) {
@@ -393,7 +466,72 @@ public class CustomWatchFaceService extends CanvasWatchFaceService {
                 return String.valueOf(mDisplayTime.hour - 12);
 
         }
+        @Override
+        public void onDestroy() {
+            releaseGoogleApiClient();
+            super.onDestroy();
+        }
+
+        // data 12 onConnected method
+
+
+        @Override
+        public void onConnected(Bundle bundle) {
+            Log.v("onCOnnect", "connected GoogleAPI");
+//            Wearable.DataApi.addListener(googleApiClient, onDataChangedListener);
+            Wearable.DataApi.addListener(googleApiClient, this);
+/*
+            Wearable.DataApi.getDataItems(googleApiClient).setResultCallback(onConnectedResultCallback);
+*/
+        }
+
+        @Override
+        public void onConnectionSuspended(int i) {
+            Log.e("onConnSuspend", "suspended GoogleAPI");
+        }
+
+        @Override
+        public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
+            Log.e("onConnFailed", "onConnFailed Google Api");
+        }
+
+
+        @Override
+        public void onDataChanged(DataEventBuffer dataEvents) {
+            for (DataEvent event : dataEvents) {
+                Log.v("Wearable :","data changed..");
+                if (event.getType() == DataEvent.TYPE_CHANGED) {
+                    DataItem item = event.getDataItem();
+                    if (item.getUri().getPath().compareTo(DATA_PATH) == 0) {
+                        DataMap dataMap = DataMapItem.fromDataItem(item).getDataMap();
+/*
+                        String name = dataMap.getString("name");
+                        int img = dataMap.getInt("img");
+*/
+                        id=dataMap.getInt("id");
+                        max=dataMap.getDouble("high");
+                        min=dataMap.getDouble("low");
+                        desc=dataMap.getString("desc");
+
+//                        Log.v("Wearable BASIC",name+img);
+                        Log.v("Wearable DESC",desc);
+                        Log.v("Wearable MAX",max+"");
+                        Log.v("Wearable MIN",min+"");
+                        Log.v("Wearable ID",id+"");
+
+                    }
+                }
+            }
+        }
+
+        @Override
+        public void onMessageReceived(MessageEvent messageEvent) {
+            Log.v("Wearable Message", messageEvent.toString());
+        }
+
 
     }
 
+
 }
+
