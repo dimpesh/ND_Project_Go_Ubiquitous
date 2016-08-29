@@ -34,6 +34,10 @@
                 android:name="com.google.android.wearable.watchface.preview_circular"
                 android:resource="@mipmap/ic_launcher"/>
 
+            <!-- data 4 add meta data and go to mainact -->
+            <meta-data android:name="com.google.android.wearable.watchface.companionConfigurationAction"
+                android:value="app.customwatchface.CONFIG_DIGITAL"/>
+
             <intent-filter>
 
                 <action android:name="android.service.wallpaper.WallpaperService"/>

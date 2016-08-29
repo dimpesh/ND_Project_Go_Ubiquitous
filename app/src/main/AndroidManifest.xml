@@ -19,7 +19,8 @@
 
     <!-- This permission is necessary in order for Sunshine to perform network access. -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-feature android:name="android.hardware.type.watch" />
+    <uses-feature android:name="android.hardware.type.watch"
+        android:required="false"/>
  <!-- necessary for Watch Face, must be in both wear and mobile manifest-->
     <uses-permission android:name="com.google.android.permisssion.PROVIDE_BACKGROUND" />
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
@@ -52,6 +53,13 @@
         android:label="@string/app_name"
         android:theme="@style/AppTheme"
         android:supportsRtl="true">
+
+        <!--   data 1  Need to add meta-data for using google api -->
+
+        <meta-data
+            android:name="com.google.android.gms.version"
+            android:value="@integer/google_play_services_version" />
+
         <activity
             android:name=".MainActivity"
             android:label="@string/app_name"
@@ -60,6 +68,16 @@
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <intent-filter>
+
+                <!-- data 2 adding intent filter in activity sp that it can be perceived -->
+                <!-- data 3 go to wear manifest for adding meta data in service-->
+
+            <action android:name="com.example.android.sunshine.app.CONFIG_DIGITAL"/>
+            <category android:name="com.google.android.wearable.watchface.category.COMPANION_CONFIGURATION" />
+            <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
         </activity>
         <activity
