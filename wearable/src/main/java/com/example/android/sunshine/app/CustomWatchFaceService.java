@@ -5,6 +5,8 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -25,6 +27,7 @@ import android.text.format.Time;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.wearable.Asset;
 import com.google.android.gms.wearable.DataApi;
 import com.google.android.gms.wearable.DataEvent;
 import com.google.android.gms.wearable.DataEventBuffer;
@@ -35,6 +38,7 @@ import com.google.android.gms.wearable.MessageApi;
 import com.google.android.gms.wearable.MessageEvent;
 import com.google.android.gms.wearable.Wearable;
 
+import java.io.InputStream;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
@@ -55,16 +59,18 @@ public class CustomWatchFaceService extends CanvasWatchFaceService {
 
     //s2 class extends Engine
     private class WatchFaceEngine extends Engine implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener
-            , DataApi.DataListener, MessageApi.MessageListener{
+            , DataApi.DataListener, MessageApi.MessageListener {
 
 
         // GoogleApiClient Path...
-        private  String DATA_PATH="/my_path";
+        private String DATA_PATH = "/my_path";
         private GoogleApiClient googleApiClient;
         int id;
         double max;
         double min;
         String desc;
+        public Asset icon;
+        Bitmap bmp;
 
         private Typeface MY_TYPREFACE = Typeface.createFromAsset(getApplicationContext().getAssets(), "montserrat.ttf");
 
@@ -318,6 +324,8 @@ public class CustomWatchFaceService extends CanvasWatchFaceService {
             drawTimeText(canvas);
             drawDayText(canvas);
             drawTemperatureText(canvas);
+            if (!isInAmbientMode())
+                drawWeatherIcon(canvas);
 
         }
 
@@ -364,45 +372,46 @@ public class CustomWatchFaceService extends CanvasWatchFaceService {
         // Drawing day..
         private void drawDayText(Canvas canvas) {
             String result;
-            String day = getDayName(mDisplayTime.weekDay)+" ";
-            String month=getMonthName(mDisplayTime.month)+" ";
-            String date=mDisplayTime.monthDay+" ";
-            String year=mDisplayTime.year+"";
-            result=day+" | "+month+" "+date+","+year;
-            String result_ambient=date+month;
+            String day = getDayName(mDisplayTime.weekDay) + " ";
+            String month = getMonthName(mDisplayTime.month) + " ";
+            String date = mDisplayTime.monthDay + " ";
+            String year = mDisplayTime.year + "";
+            result = day + " | " + month + " " + date + "," + year;
+            String result_ambient = date + month;
             Paint textpaint = new Paint();
             textpaint.setColor(Color.parseColor("#ffffff"));
             textpaint.setTextSize(getResources().getDimension(R.dimen.day_size));
             textpaint.setAntiAlias(true);
-            if (isInAmbientMode() || isInAmbientMode())
-            {
+            if (isInAmbientMode() || isInAmbientMode()) {
                 canvas.drawText(result_ambient, 100, 180, textpaint);
 
             } else
-                canvas.drawText(result, 90,180, textpaint);
+                canvas.drawText(result, 90, 180, textpaint);
         }
 
-        private void drawTemperatureText(Canvas canvas)
-        {
-            if(id!=0 && desc!=null)
-            {
-                int max_value= (int) Math.round(max);
-                int min_value=(int)Math.round(min);
+        private void drawTemperatureText(Canvas canvas) {
+            if (id != 0 && desc != null) {
+                int max_value = (int) Math.round(max);
+                int min_value = (int) Math.round(min);
 
-                String temp_text=desc+" | "+max_value+"/"+min_value;
-                String temp_text_ambient=max_value+"/"+min_value;
+                String temp_text = desc + " | " + max_value + "/" + min_value;
+                String temp_text_ambient = max_value + "/" + min_value;
                 Paint textpaint = new Paint();
                 textpaint.setColor(Color.parseColor("#ffffff"));
                 textpaint.setTextSize(getResources().getDimension(R.dimen.day_size));
                 textpaint.setAntiAlias(true);
-                if (isInAmbientMode())
-                {
-                    canvas.drawText(temp_text_ambient, 180,180, textpaint);
+                if (isInAmbientMode()) {
+                    canvas.drawText(temp_text_ambient, 180, 180, textpaint);
                 } else
                     canvas.drawText(temp_text, 120, 210, textpaint);
             }
 
+        }
 
+        private void drawWeatherIcon(Canvas canvas) {
+            if (bmp != null) {
+                canvas.drawBitmap(bmp, ((canvas.getWidth()/2) - 40), (canvas.getWidth() / 4 - 40), null);
+            }
         }
 
         private String getDayName(int n) {
@@ -425,35 +434,35 @@ public class CustomWatchFaceService extends CanvasWatchFaceService {
                     return "NA";
             }
         }
-        public String getMonthName(int n)
-        {
-            switch (n)
-            {
-                case 0 :
+
+        public String getMonthName(int n) {
+            switch (n) {
+                case 0:
                     return "JAN";
-                case 1 :
+                case 1:
                     return "FEB";
-                case 2 :
+                case 2:
                     return "MAR";
-                case 3 :
+                case 3:
                     return "APR";
-                case 4 :
+                case 4:
                     return "MAY";
-                case 5 :
+                case 5:
                     return "JUN";
-                case 6 :
+                case 6:
                     return "JUL";
-                case 7 :
+                case 7:
                     return "AUG";
-                case 8 :
+                case 8:
                     return "SEP";
-                case 9 :
+                case 9:
                     return "OCT";
-                case 10 :
+                case 10:
                     return "NOV";
-                case 11 :
+                case 11:
                     return "DEC";
-                default : return "NA";
+                default:
+                    return "NA";
             }
         }
 
@@ -466,6 +475,7 @@ public class CustomWatchFaceService extends CanvasWatchFaceService {
                 return String.valueOf(mDisplayTime.hour - 12);
 
         }
+
         @Override
         public void onDestroy() {
             releaseGoogleApiClient();
@@ -499,25 +509,37 @@ public class CustomWatchFaceService extends CanvasWatchFaceService {
         @Override
         public void onDataChanged(DataEventBuffer dataEvents) {
             for (DataEvent event : dataEvents) {
-                Log.v("Wearable :","data changed..");
+                Log.v("Wearable :", "data changed..");
                 if (event.getType() == DataEvent.TYPE_CHANGED) {
                     DataItem item = event.getDataItem();
                     if (item.getUri().getPath().compareTo(DATA_PATH) == 0) {
-                        DataMap dataMap = DataMapItem.fromDataItem(item).getDataMap();
+                        final DataMap dataMap = DataMapItem.fromDataItem(item).getDataMap();
 /*
                         String name = dataMap.getString("name");
                         int img = dataMap.getInt("img");
 */
-                        id=dataMap.getInt("id");
-                        max=dataMap.getDouble("high");
-                        min=dataMap.getDouble("low");
-                        desc=dataMap.getString("desc");
+                        id = dataMap.getInt("id");
+                        max = dataMap.getDouble("high");
+                        min = dataMap.getDouble("low");
+                        desc = dataMap.getString("desc");
+                        icon = dataMap.getAsset("icon");
+                        new Thread(new Runnable() {
+                            @Override
+                            public void run() {
+                                Asset ic = dataMap.getAsset("icon");
+                                bmp = loadBitmapFromAsset(ic);
+                                if (bmp == null) {
+                                    Log.v("Wear Thread ", "Bitmap is null thread");
+                                }
+
+                            }
+                        }).start();
 
 //                        Log.v("Wearable BASIC",name+img);
-                        Log.v("Wearable DESC",desc);
-                        Log.v("Wearable MAX",max+"");
-                        Log.v("Wearable MIN",min+"");
-                        Log.v("Wearable ID",id+"");
+                        Log.v("Wearable DESC", desc);
+                        Log.v("Wearable MAX", max + "");
+                        Log.v("Wearable MIN", min + "");
+                        Log.v("Wearable ID", id + "");
 
                     }
                 }
@@ -529,8 +551,32 @@ public class CustomWatchFaceService extends CanvasWatchFaceService {
             Log.v("Wearable Message", messageEvent.toString());
         }
 
+        public Bitmap loadBitmapFromAsset(Asset asset) throws IllegalStateException {
+            if (asset == null) {
+                throw new IllegalArgumentException("Asset must be non-null");
+            }
+            ConnectionResult result =
+                    googleApiClient.blockingConnect(100, TimeUnit.MILLISECONDS);
+            if (!result.isSuccess()) {
+                return null;
+            }
+            // convert asset into a file descriptor and block until it's ready
+            InputStream assetInputStream = Wearable.DataApi.getFdForAsset(
+                    googleApiClient, asset).await().getInputStream();
+            googleApiClient.disconnect();
+
+            if (assetInputStream == null) {
+                Log.v("Wearable", "Requested an unknown Asset.");
+                return null;
+            }
+            // decode the stream into a bitmap
+            return BitmapFactory.decodeStream(assetInputStream);
+        }
+
 
     }
+
+    // load Bitmap from Asset method..
 
 
 }

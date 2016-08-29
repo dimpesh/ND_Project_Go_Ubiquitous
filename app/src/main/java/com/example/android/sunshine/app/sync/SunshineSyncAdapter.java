@@ -19,6 +19,7 @@ import android.content.res.Resources;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -26,6 +27,8 @@ import android.preference.PreferenceManager;
 import android.support.annotation.IntDef;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.app.TaskStackBuilder;
+import android.support.v4.content.ContextCompat;
+import android.support.v4.content.res.ResourcesCompat;
 import android.text.format.Time;
 import android.util.Log;
 
@@ -37,6 +40,7 @@ import com.example.android.sunshine.app.Utility;
 import com.example.android.sunshine.app.data.WeatherContract;
 import com.example.android.sunshine.app.muzei.WeatherMuzeiSource;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.wearable.Asset;
 import com.google.android.gms.wearable.PutDataMapRequest;
 import com.google.android.gms.wearable.PutDataRequest;
 import com.google.android.gms.wearable.Wearable;
@@ -46,6 +50,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -679,6 +684,7 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
     }
 
     private void updataWatchface() {
+        int iconId=0;
         Context context = getContext();
         googleApiClient = new GoogleApiClient.Builder(context)
                 .addApi(Wearable.API)
@@ -703,6 +709,12 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
             desc = cursor.getString(INDEX_SHORT_DESC);
         }
 
+        iconId = Utility.getIconResourceForWeatherCondition(weatherId);
+//        Drawable icon=context.getResources().getDrawable(iconId);
+//        Drawable icon=ResourcesCompat.getDrawable(context.getResources(),iconId, null);
+//        Drawable icon= ContextCompat.getDrawable(context,iconId);
+        Bitmap bitmap=BitmapFactory.decodeResource(context.getResources(),iconId);
+        Asset asset = createAssetFromBitmap(bitmap);
 
         PutDataMapRequest putDataMapRequest = PutDataMapRequest.create(DATA_PATH);
 
@@ -717,6 +729,7 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
         putDataMapRequest.getDataMap().putDouble("high",high);
         putDataMapRequest.getDataMap().putDouble("low",low);
         putDataMapRequest.getDataMap().putString("desc",desc);
+        putDataMapRequest.getDataMap().putAsset("icon",asset);
 
         PutDataRequest putDataRequest = putDataMapRequest.asPutDataRequest();
         Wearable.DataApi.putDataItem(googleApiClient, putDataRequest);
@@ -730,4 +743,10 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
 
     }
 
+    // Create Assets from Bitmap
+    private static Asset createAssetFromBitmap(Bitmap bitmap) {
+        final ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, byteStream);
+        return Asset.createFromBytes(byteStream.toByteArray());
+    }
 }
